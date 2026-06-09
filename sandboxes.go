@@ -10,8 +10,6 @@ import (
 	"github.com/leap0dev/leap0-go/internal/transport"
 )
 
-// --- Sandbox Types ---
-
 type SandboxState string
 
 const (
@@ -22,50 +20,68 @@ const (
 	StateSnapshotting SandboxState = "snapshotting"
 	StateDeleting     SandboxState = "deleting"
 	StateStopped      SandboxState = "stopped"
+	StateStopping     SandboxState = "stopping"
+	StateDeleted      SandboxState = "deleted"
+)
+
+type NetworkPolicyMode string
+
+const (
+	NetworkPolicyAllowAll NetworkPolicyMode = "allow-all"
+	NetworkPolicyDenyAll  NetworkPolicyMode = "deny-all"
+	NetworkPolicyCustom   NetworkPolicyMode = "custom"
 )
 
 type SandboxData struct {
 	ID            string            `json:"id"`
-	Name          string            `json:"name,omitempty"`
+	TemplateID    string            `json:"template_id,omitempty"`
+	TemplateName  string            `json:"template_name,omitempty"`
 	State         SandboxState      `json:"state"`
-	TemplateName  string            `json:"template_name"`
 	VCPU          int               `json:"vcpu"`
 	Memory        int               `json:"memory"`
+	Disk          int               `json:"disk,omitempty"`
 	Timeout       int               `json:"timeout"`
 	AutoPause     bool              `json:"auto_pause"`
-	OtelExport    bool              `json:"otel_export"`
-	Telemetry     bool              `json:"telemetry"`
 	EnvVars       map[string]string `json:"env_vars,omitempty"`
 	NetworkPolicy *NetworkPolicy    `json:"network_policy,omitempty"`
 	Mounts        []Mount           `json:"mounts,omitempty"`
 	CreatedAt     time.Time         `json:"created_at"`
-	UpdatedAt     time.Time         `json:"updated_at"`
+	UpdatedAt     string            `json:"updated_at,omitempty"`
 }
 
 type NetworkPolicy struct {
-	AllowOutbound bool          `json:"allow_outbound"`
-	AllowInbound  bool          `json:"allow_inbound"`
-	AllowedHosts  []AllowedHost `json:"allowed_hosts,omitempty"`
+	Mode         NetworkPolicyMode  `json:"mode"`
+	AllowDomains []string           `json:"allow_domains,omitempty"`
+	AllowCIDRs   []string           `json:"allow_cidrs,omitempty"`
+	Transforms   []NetworkTransform `json:"transforms,omitempty"`
 }
 
-type AllowedHost struct {
-	Host  string `json:"host"`
-	Ports []int  `json:"ports,omitempty"`
+type NetworkTransform struct {
+	Domain        string            `json:"domain"`
+	InjectHeaders map[string]string `json:"inject_headers,omitempty"`
+	StripHeaders  []string          `json:"strip_headers,omitempty"`
 }
 
 type Mount struct {
-	ID         string `json:"id,omitempty"`
-	MountPath  string `json:"mount_path"`
-	BucketName string `json:"bucket_name"`
-	Region     string `json:"region"`
-	Provider   string `json:"provider"`
-	AccessKey  string `json:"access_key,omitempty"`
-	SecretKey  string `json:"secret_key,omitempty"`
-	ReadOnly   bool   `json:"read_only"`
+	ID        string `json:"id,omitempty"`
+	Type      string `json:"type,omitempty"`
+	Bucket    string `json:"bucket"`
+	MountPath string `json:"mount_path"`
+	Prefix    string `json:"prefix,omitempty"`
+	ReadOnly  bool   `json:"read_only"`
+}
+type MountRequest struct {
+	Bucket          string `json:"bucket"`
+	MountPath       string `json:"mount_path"`
+	Endpoint        string `json:"endpoint"`
+	Prefix          string `json:"prefix,omitempty"`
+	ReadOnly        bool   `json:"read_only"`
+	AccessKeyID     string `json:"access_key_id,omitempty"`
+	SecretAccessKey string `json:"secret_access_key,omitempty"`
 }
 
 type CreateSandboxParams struct {
-	TemplateName  string            `json:"template_name,omitempty"`
+	TemplateName  string            `json:"template_name"`
 	VCPU          int               `json:"vcpu,omitempty"`
 	Memory        int               `json:"memory,omitempty"`
 	Timeout       int               `json:"timeout,omitempty"`
@@ -74,7 +90,7 @@ type CreateSandboxParams struct {
 	Telemetry     *bool             `json:"telemetry,omitempty"`
 	EnvVars       map[string]string `json:"env_vars,omitempty"`
 	NetworkPolicy *NetworkPolicy    `json:"network_policy,omitempty"`
-	Mounts        []Mount           `json:"mounts,omitempty"`
+	Mounts        []MountRequest    `json:"mounts,omitempty"`
 }
 
 type ListSandboxesParams struct {
@@ -83,6 +99,16 @@ type ListSandboxesParams struct {
 	State    string
 	Sort     string
 	OrderBy  string
+}
+
+type SandboxListItem struct {
+	ID              string       `json:"id"`
+	TemplateID      string       `json:"template_id"`
+	State           SandboxState `json:"state"`
+	LaunchTime      string       `json:"launch_time,omitempty"`
+	StateChangeTime string       `json:"state_change_time,omitempty"`
+	TimeoutAt       int          `json:"timeout_at,omitempty"`
+	CreatedAt       string       `json:"created_at"`
 }
 
 type SandboxList struct {
@@ -97,69 +123,13 @@ type PresignedURLParams struct {
 
 type PresignedURL struct {
 	ID        string    `json:"id"`
+	Token     string    `json:"token"`
 	URL       string    `json:"url"`
+	SandboxID string    `json:"sandbox_id"`
 	Port      int       `json:"port"`
 	ExpiresAt time.Time `json:"expires_at"`
+	CreatedAt string    `json:"created_at"`
 }
-
-type Snapshot struct {
-	ID           string    `json:"id"`
-	SandboxID    string    `json:"sandbox_id"`
-	TemplateName string    `json:"template_name,omitempty"`
-	CreatedAt    time.Time `json:"created_at"`
-}
-
-type ListSnapshotsParams struct {
-	Page      int
-	PageSize  int
-	SandboxID string
-}
-
-type SnapshotList struct {
-	Items      []Snapshot `json:"items"`
-	TotalItems int        `json:"total_items"`
-}
-
-type RestoreSnapshotParams struct {
-	SnapshotID string            `json:"snapshot_id"`
-	VCPU       int               `json:"vcpu,omitempty"`
-	Memory     int               `json:"memory,omitempty"`
-	Timeout    int               `json:"timeout,omitempty"`
-	AutoPause  *bool             `json:"auto_pause,omitempty"`
-	EnvVars    map[string]string `json:"env_vars,omitempty"`
-}
-
-type Template struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	CreatedAt time.Time `json:"created_at"`
-}
-
-type CreateTemplateParams struct {
-	Name       string              `json:"name"`
-	Dockerfile string              `json:"dockerfile"`
-	Credential *RegistryCredential `json:"credential,omitempty"`
-}
-
-type RenameTemplateParams struct {
-	Name string `json:"name"`
-}
-
-type RegistryCredential struct {
-	Type              string `json:"type"`
-	Server            string `json:"server,omitempty"`
-	Username          string `json:"username,omitempty"`
-	Password          string `json:"password,omitempty"`
-	Region            string `json:"region,omitempty"`
-	AccessKeyID       string `json:"access_key_id,omitempty"`
-	SecretAccessKey    string `json:"secret_access_key,omitempty"`
-	ServiceAccountKey string `json:"service_account_key,omitempty"`
-	TenantID          string `json:"tenant_id,omitempty"`
-	ClientID          string `json:"client_id,omitempty"`
-	ClientSecret      string `json:"client_secret,omitempty"`
-}
-
-// --- SandboxesService ---
 
 type SandboxesService struct{ t *transport.Client }
 
@@ -173,7 +143,7 @@ func (s *SandboxesService) Create(ctx context.Context, p *CreateSandboxParams) (
 
 func (s *SandboxesService) Get(ctx context.Context, id string) (*SandboxData, error) {
 	var r SandboxData
-	return &r, wrapErr("get sandbox", s.t.JSON(ctx, http.MethodGet, fmt.Sprintf("/v1/sandbox/%s/", id), nil, &r, nil))
+	return &r, wrapErr("get sandbox", s.t.JSON(ctx, http.MethodGet, fmt.Sprintf("/v1/sandbox/%s", id), nil, &r, nil))
 }
 
 func (s *SandboxesService) List(ctx context.Context, p *ListSandboxesParams) (*SandboxList, error) {
@@ -183,7 +153,7 @@ func (s *SandboxesService) List(ctx context.Context, p *ListSandboxesParams) (*S
 			opts.Query["page"] = strconv.Itoa(p.Page)
 		}
 		if p.PageSize > 0 {
-			opts.Query["page_size"] = strconv.Itoa(p.PageSize)
+			opts.Query["page-size"] = strconv.Itoa(p.PageSize)
 		}
 		if p.State != "" {
 			opts.Query["state"] = p.State
@@ -192,7 +162,7 @@ func (s *SandboxesService) List(ctx context.Context, p *ListSandboxesParams) (*S
 			opts.Query["sort"] = p.Sort
 		}
 		if p.OrderBy != "" {
-			opts.Query["order_by"] = p.OrderBy
+			opts.Query["order-by"] = p.OrderBy
 		}
 	}
 	var r SandboxList
@@ -207,24 +177,28 @@ func (s *SandboxesService) Stop(ctx context.Context, id string) error {
 	return wrapErr("stop", s.t.JSON(ctx, http.MethodPost, fmt.Sprintf("/v1/sandbox/%s/stop", id), nil, nil, nil))
 }
 
-func (s *SandboxesService) Start(ctx context.Context, id string) error {
-	return wrapErr("start", s.t.JSON(ctx, http.MethodPost, fmt.Sprintf("/v1/sandbox/%s/start", id), nil, nil, nil))
+func (s *SandboxesService) Start(ctx context.Context, id string) (*SandboxData, error) {
+	var r SandboxData
+	return &r, wrapErr("start", s.t.JSON(ctx, http.MethodPost, fmt.Sprintf("/v1/sandbox/%s/start", id), nil, &r, nil))
 }
 
 func (s *SandboxesService) Delete(ctx context.Context, id string) error {
-	return wrapErr("delete", s.t.JSON(ctx, http.MethodDelete, fmt.Sprintf("/v1/sandbox/%s/", id), nil, nil, nil))
+	return wrapErr("delete", s.t.JSON(ctx, http.MethodDelete, fmt.Sprintf("/v1/sandbox/%s", id), nil, nil, nil))
 }
 
-func (s *SandboxesService) CreateSnapshot(ctx context.Context, id string) (*Snapshot, error) {
+func (s *SandboxesService) CreateSnapshot(ctx context.Context, id string, p *CreateSnapshotParams) (*Snapshot, error) {
+	if p == nil {
+		p = &CreateSnapshotParams{}
+	}
 	var r Snapshot
-	return &r, wrapErr("create snapshot", s.t.JSON(ctx, http.MethodPost, fmt.Sprintf("/v1/sandbox/%s/snapshot/create", id), nil, &r, nil))
+	return &r, wrapErr("create snapshot", s.t.JSON(ctx, http.MethodPost, fmt.Sprintf("/v1/sandbox/%s/snapshot/create", id), p, &r, nil))
 }
 
-func (s *SandboxesService) AddMount(ctx context.Context, id string, m *Mount) error {
+func (s *SandboxesService) AddMount(ctx context.Context, id string, m *MountRequest) error {
 	return wrapErr("add mount", s.t.JSON(ctx, http.MethodPost, fmt.Sprintf("/v1/sandbox/%s/mounts", id), m, nil, nil))
 }
 
-func (s *SandboxesService) UpdateMount(ctx context.Context, id, mountID string, m *Mount) error {
+func (s *SandboxesService) UpdateMount(ctx context.Context, id, mountID string, m *MountRequest) error {
 	return wrapErr("update mount", s.t.JSON(ctx, http.MethodPatch, fmt.Sprintf("/v1/sandbox/%s/mounts/%s", id, mountID), m, nil, nil))
 }
 
@@ -263,51 +237,4 @@ func (s *SandboxesService) InvokeURL(id, path string, port int) string {
 
 func (s *SandboxesService) WebsocketURL(id, path string, port int) string {
 	return s.t.SandboxWSURL(id, port, path)
-}
-
-// --- SnapshotsService ---
-
-type SnapshotsService struct{ t *transport.Client }
-
-func (s *SnapshotsService) List(ctx context.Context, p *ListSnapshotsParams) (*SnapshotList, error) {
-	opts := &transport.Options{Query: map[string]string{}}
-	if p != nil {
-		if p.Page > 0 {
-			opts.Query["page"] = strconv.Itoa(p.Page)
-		}
-		if p.PageSize > 0 {
-			opts.Query["page_size"] = strconv.Itoa(p.PageSize)
-		}
-		if p.SandboxID != "" {
-			opts.Query["sandbox_id"] = p.SandboxID
-		}
-	}
-	var r SnapshotList
-	return &r, wrapErr("list snapshots", s.t.JSON(ctx, http.MethodGet, "/v1/snapshots", nil, &r, opts))
-}
-
-func (s *SnapshotsService) Restore(ctx context.Context, p *RestoreSnapshotParams) (*SandboxData, error) {
-	var r SandboxData
-	return &r, wrapErr("restore snapshot", s.t.JSON(ctx, http.MethodPost, "/v1/snapshot/restore", p, &r, nil))
-}
-
-func (s *SnapshotsService) Delete(ctx context.Context, id string) error {
-	return wrapErr("delete snapshot", s.t.JSON(ctx, http.MethodDelete, fmt.Sprintf("/v1/snapshot/%s", id), nil, nil, nil))
-}
-
-// --- TemplatesService ---
-
-type TemplatesService struct{ t *transport.Client }
-
-func (s *TemplatesService) Create(ctx context.Context, p *CreateTemplateParams) (*Template, error) {
-	var r Template
-	return &r, wrapErr("create template", s.t.JSON(ctx, http.MethodPost, "/v1/template", p, &r, nil))
-}
-
-func (s *TemplatesService) Rename(ctx context.Context, id string, p *RenameTemplateParams) error {
-	return wrapErr("rename template", s.t.JSON(ctx, http.MethodPatch, fmt.Sprintf("/v1/template/%s", id), p, nil, nil))
-}
-
-func (s *TemplatesService) Delete(ctx context.Context, id string) error {
-	return wrapErr("delete template", s.t.JSON(ctx, http.MethodDelete, fmt.Sprintf("/v1/template/%s", id), nil, nil, nil))
 }

@@ -11,11 +11,13 @@ import (
 // --- SSH Types ---
 
 type SSHAccess struct {
-	ID       string `json:"id"`
-	Host     string `json:"host"`
-	Port     int    `json:"port"`
-	Username string `json:"username"`
-	Password string `json:"password"`
+	ID         string `json:"id"`
+	SandboxID  string `json:"sandbox_id"`
+	Password   string `json:"password"`
+	SSHCommand string `json:"ssh_command"`
+	ExpiresAt  string `json:"expires_at"`
+	CreatedAt  string `json:"created_at"`
+	UpdatedAt  string `json:"updated_at"`
 }
 
 type SSHValidation struct {
